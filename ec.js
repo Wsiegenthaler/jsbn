@@ -282,15 +282,33 @@ function curveFpFromBigInteger(x) {
     return new ECFieldElementFp(this.q, x);
 }
 
+function curveFpDecompressPoint(yOdd, X) {
+  if(this.q.mod(BigInteger.valueOf(4)).equals(BigInteger.valueOf(3))) {
+    // y^2 = x^3 + ax^2 + b, so we need to perform sqrt to recover y
+    var ySquared = X.multiply(X.square().add(this.a)).add(this.b);
+
+    // sqrt(a) = a^((q-1)/4) if q = 3 mod 4
+    var Y = ySquared.x.modPow(this.q.add(BigInteger.ONE).divide(BigInteger.valueOf(4)), this.q);
+
+    if(Y.testBit(0) !== yOdd) {
+      Y = this.q.subtract(Y);
+    }
+
+    return new ECPointFp(this, X, this.fromBigInteger(Y));
+  } else {
+    throw new Error("point decompression only implements sqrt for q = 3 mod 4");
+  }
+};
+
 // for now, work with hex strings because they're easier in JS
 function curveFpDecodePointHex(s) {
     switch(parseInt(s.substr(0,2), 16)) { // first byte
     case 0:
 	return this.infinity;
     case 2:
+        return this.decompressPoint(false, this.fromBigInteger(new BigInteger(s.substr(2), 16)));
     case 3:
-	// point compression not supported yet
-	return null;
+        return this.decompressPoint(true, this.fromBigInteger(new BigInteger(s.substr(2), 16)));
     case 4:
     case 6:
     case 7:
@@ -314,3 +332,4 @@ ECCurveFp.prototype.equals = curveFpEquals;
 ECCurveFp.prototype.getInfinity = curveFpGetInfinity;
 ECCurveFp.prototype.fromBigInteger = curveFpFromBigInteger;
 ECCurveFp.prototype.decodePointHex = curveFpDecodePointHex;
+ECCurveFp.prototype.decompressPoint = curveFpDecompressPoint;
